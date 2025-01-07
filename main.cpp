@@ -135,6 +135,7 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
     QCommandLineParser parser;
     parser.setApplicationDescription("Erzeugt SVG-Grafiken aus Bildern.");
     parser.addHelpOption();
@@ -194,14 +195,14 @@ int main(int argc, char *argv[])
     palettes["grayscale"] = {Qt::black, Qt::darkGray, Qt::gray, Qt::lightGray, Qt::white};
 
     QVector<QColor> activePalette;
-     if (usePalette) {
-        if (palettes.contains(paletteName)) {
-            activePalette = palettes[paletteName];
-        } else {
-            qDebug() << "Ungültige Palette: " << paletteName << ". Verwende Standardpalette (palette3).";
-            activePalette = palettes["palette3"];
-        }
-     }
+    if (usePalette) {
+       if (palettes.contains(paletteName)) {
+           activePalette = palettes[paletteName];
+       } else {
+           qDebug() << "Ungültige Palette: " << paletteName << ". Verwende Standardpalette (palette3).";
+           activePalette = palettes["palette3"];
+       }
+    }
 
     createSvgFromColorMatrix(farbMatrix, bildBreite, bildHoehe, rasterBreite, rasterHoehe, svgFileName, scalingMode, grayscale, blackCircles, activePalette, usePalette);
     qDebug() << "SVG-Datei erfolgreich erzeugt.";
