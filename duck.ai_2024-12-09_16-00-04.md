@@ -1,6 +1,6 @@
 ﻿Diese Konversation wurde mit DuckDuckGo AI Chat (https://duck.ai) unter Verwendung des GPT-4o mini-Modells von OpenAI generiert. KI-Chats zeigen möglicherweise falsche oder anstößige Informationen an (weitere Informationen siehe https://duckduckgo.com/aichat/privacy-terms).
 
-====================
+=====================
 
 Benutzereingabe 1 von 20 - 9.12.2024, 14:43:25:
 Is it better to talk with you about coding in english or in german ?
