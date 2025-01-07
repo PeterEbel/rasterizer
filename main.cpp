@@ -70,7 +70,7 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
 
     svgStream << "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n";
     svgStream << "<svg width=\"" << bildBreite << "\" height=\"" << bildHoehe << "\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n";
-    svgStream << "<rect width=\"" << bildBreite << "\" height=\"" << bildHoehe << "\" fill=\"white\" />\n";
+    svgStream << "<rect id=\"background\" width=\"" << bildBreite << "\" height=\"" << bildHoehe << "\" fill=\"white\" />\n";
     svgStream << "<g id=\"circles\">\n";
 
     double cornerCoverageFactor = 1.3;
