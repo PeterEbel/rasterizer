@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
         qDebug() << "Corner-Coverage-Faktor: Muss größer als 0 sein. Verwende Standardwert 1.0.";
         cornerCoverageFactor = 1.0;
     } else if (cornerCoverageFactor > 2.0) {
-        qDebug() << "Corner-Coverage-Faktor: Ist zu gross. Verwende Maximalwert 2.0.";
+        qDebug() << "Corner-Coverage-Faktor: Wert ist zu gross. Verwende Maximalwert 2.0.";
         cornerCoverageFactor = 2.0;
     } else {
         qDebug() << "Corner-Coverage-Faktor: Verwende Wert:" << cornerCoverageFactor;
