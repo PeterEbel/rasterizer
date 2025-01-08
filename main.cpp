@@ -127,7 +127,7 @@ int getPaletteIndex(int helligkeit, const QVector<QColor>& palette) {
 
 }
 
-void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite, int bildHoehe, int rasterBreite, int rasterHoehe, const QString& svgFileName, const QString& scalingMode, bool grayscale, bool blackCircles, const QVector<QColor>& activePalette, bool usePalette) {
+void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite, int bildHoehe, int rasterBreite, int rasterHoehe, const QString& svgFileName, const QString& scalingMode, bool grayscale, bool blackCircles, const QVector<QColor>& activePalette, bool usePalette, double cornerCoverageFactor) {
 
     QFile svgFile(svgFileName);
     if (!svgFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -143,8 +143,8 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
     svgStream << "<rect id=\"background\" width=\"" << bildBreite << "\" height=\"" << bildHoehe << "\" fill=\"white\" />\n";
     svgStream << "<g id=\"circles\">\n";
 
-    double cornerCoverageFactor = 1.3;
-    double maxRadiusFactor = blackCircles ? cornerCoverageFactor : 1.2;
+    //double maxRadiusFactor = blackCircles ? cornerCoverageFactor : 1.2;
+    //double maxRadiusFactor = cornerCoverageFactor;
 
     int index = 0;
     for (int y = 0; y < bildHoehe; y += rasterHoehe) {
@@ -156,7 +156,7 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
                 int helligkeit = qGray(color.rgb());
                 helligkeit = 255 - helligkeit;
 
-                double maxRadius = std::min(rasterBreite, rasterHoehe) / 2.0 * maxRadiusFactor;
+                double maxRadius = std::min(rasterBreite, rasterHoehe) / 2.0 * cornerCoverageFactor;
                 double radius = 0;
 
                 if (scalingMode == "linear") {
@@ -228,6 +228,8 @@ int main(int argc, char *argv[])
     parser.addOption(paletteOption);
     QCommandLineOption medianOption(QStringList() << "m" << "median", "Verwendet den Median zur Farbbestimmung anstelle des Durchschnitts.");
     parser.addOption(medianOption);
+    QCommandLineOption cornerCoverageOption(QStringList() << "c" << "corner-coverage", "Der Faktor für die Eckabdeckung (z.B. 1.0, 1.3).", "faktor", "1.0");
+    parser.addOption(cornerCoverageOption);
 
     parser.process(a.arguments());
 
@@ -285,7 +287,30 @@ int main(int argc, char *argv[])
        }
     }
 
-    createSvgFromColorMatrix(farbMatrix, bildBreite, bildHoehe, rasterBreite, rasterHoehe, svgFileName, scalingMode, grayscale, blackCircles, activePalette, usePalette);
+    double cornerCoverageFactor = 1.0; // Standardwert
+    bool ok;
+
+    if (!parser.value(cornerCoverageOption).isEmpty() && parser.isSet(cornerCoverageOption)) {
+        cornerCoverageFactor = QLocale::c().toDouble(parser.value(cornerCoverageOption), &ok);
+        if (!ok) {
+            qDebug() << "Corner-Coverage-Faktor: Ungültiger Wert. Verwende Standardwert 1.0";
+            cornerCoverageFactor = 1.0;
+        }
+    } else {
+        qDebug() << "Corner-Coverage-Faktor: Standardwert verwendet: 1.0";
+    }
+
+    if (cornerCoverageFactor <= 0) {
+        qDebug() << "Corner-Coverage-Faktor: Muss größer als 0 sein. Verwende Standardwert 1.0.";
+        cornerCoverageFactor = 1.0;
+    } else if (cornerCoverageFactor > 2.0) {
+        qDebug() << "Corner-Coverage-Faktor: Ist zu gross. Verwende Maximalwert 2.0.";
+        cornerCoverageFactor = 2.0;
+    } else {
+        qDebug() << "Corner-Coverage-Faktor: Verwende Wert:" << cornerCoverageFactor;
+    }
+
+    createSvgFromColorMatrix(farbMatrix, bildBreite, bildHoehe, rasterBreite, rasterHoehe, svgFileName, scalingMode, grayscale, blackCircles, activePalette, usePalette, cornerCoverageFactor);
     qDebug() << "SVG-Datei erfolgreich erzeugt.";
 
     return(0);
