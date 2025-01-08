@@ -12,8 +12,151 @@
 #include <QMap>
 #include <algorithm> // Für std::sort
 #include <vector>
+#include <QtConcurrent>
+#include <QFuture>
+#include <QElapsedTimer> // Für Performance-Messungen
 
 QVector<QColor> scanImageToMatrixMedian(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+
+    QElapsedTimer timer;
+    timer.start();
+
+    QImage image(imagePath);
+    if (image.isNull()) {
+        qDebug() << "Fehler beim Laden des Bildes: " << imagePath;
+        return QVector<QColor>(); // Leeren Vektor zurückgeben
+    }
+
+    bildBreite = image.width();
+    bildHoehe = image.height();
+
+    int matrixBreite = bildBreite / rasterBreite;
+    int matrixHoehe = bildHoehe / rasterHoehe;
+    QVector<QColor> farbMatrix(matrixBreite * matrixHoehe);
+    QList<QFuture<QColor>> futures;
+
+    for (int y = 0; y < bildHoehe; y += rasterHoehe) {
+        for (int x = 0; x < bildBreite; x += rasterBreite) {
+            futures.append(QtConcurrent::run([=]() -> QColor {
+                QRect rect(x, y, std::min(rasterBreite, bildBreite - x), std::min(rasterHoehe, bildHoehe - y));
+                QImage subImage = image.copy(rect); // Kopie des Bildausschnitts!
+
+                if (subImage.isNull()){
+                    return QColor();
+                }
+
+                std::vector<int> redValues;
+                std::vector<int> greenValues;
+                std::vector<int> blueValues;
+
+                for (int iy = 0; iy < subImage.height(); ++iy) {
+                    for (int ix = 0; ix < subImage.width(); ++ix) {
+                        QRgb rgb = subImage.pixel(ix, iy);
+                        redValues.push_back(qRed(rgb));
+                        greenValues.push_back(qGreen(rgb));
+                        blueValues.push_back(qBlue(rgb));
+                    }
+                }
+                if (!redValues.empty()) {
+                    std::sort(redValues.begin(), redValues.end());
+                    std::sort(greenValues.begin(), greenValues.end());
+                    std::sort(blueValues.begin(), blueValues.end());
+
+                    int medianRed = redValues[redValues.size() / 2];
+                    int medianGreen = greenValues[greenValues.size() / 2];
+                    int medianBlue = blueValues[blueValues.size() / 2];
+                    return QColor(medianRed, medianGreen, medianBlue);
+                } else {
+                    return QColor();
+                }
+
+            }));
+        }
+    }
+
+    int index = 0;
+    for(auto & future : futures){
+        farbMatrix[index] = future.result();
+        index++;
+    }
+
+    qDebug() << "scanImageToMatrixMedian benötigte:" << timer.elapsed() << "Millisekunden";
+    return farbMatrix;
+}
+
+
+QVector<QColor> scanImageToMatrixAverage(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+
+    QElapsedTimer timer;
+    timer.start();
+
+    QImage image(imagePath);
+    if (image.isNull()) {
+        qDebug() << "Fehler beim Laden des Bildes: " << imagePath;
+        return QVector<QColor>(); // Leeren Vektor zurückgeben
+    }
+
+    bildBreite = image.width();
+    bildHoehe = image.height();
+
+    int matrixBreite = bildBreite / rasterBreite;
+    int matrixHoehe = bildHoehe / rasterHoehe;
+    QVector<QColor> farbMatrix(matrixBreite * matrixHoehe);
+    QList<QFuture<QColor>> futures;
+
+
+    for (int y = 0; y < bildHoehe; y += rasterHoehe) {
+        for (int x = 0; x < bildBreite; x += rasterBreite) {
+            futures.append(QtConcurrent::run([=]() -> QColor {
+                QRect rect(x, y, std::min(rasterBreite, bildBreite - x), std::min(rasterHoehe, bildHoehe - y));
+                QImage subImage = image.copy(rect); // Kopie des Bildausschnitts!
+
+                if (subImage.isNull()){
+                    return QColor();
+                }
+
+                long long redSum = 0;
+                long long greenSum = 0;
+                long long blueSum = 0;
+                int pixelCount = 0;
+
+                for (int iy = 0; iy < subImage.height(); ++iy) {
+                    for (int ix = 0; ix < subImage.width(); ++ix) {
+                        QRgb rgb = subImage.pixel(ix, iy);
+                        redSum += qRed(rgb);
+                        greenSum += qGreen(rgb);
+                        blueSum += qBlue(rgb);
+                        pixelCount++;
+                    }
+                }
+
+                if (pixelCount > 0) {
+                    int averageRed = redSum / pixelCount;
+                    int averageGreen = greenSum / pixelCount;
+                    int averageBlue = blueSum / pixelCount;
+                    return QColor(averageRed, averageGreen, averageBlue);
+                } else {
+                    return QColor();
+                }
+            }));
+        }
+    }
+
+    int index = 0;
+    for(auto & future : futures){
+        farbMatrix[index] = future.result();
+        index++;
+    }
+
+    qDebug() << "scanImageToMatrixAverage benötigte:" << timer.elapsed() << "Millisekunden";
+    return farbMatrix;
+}
+
+/* Single-Thread Version von scanImageToMatrix
+QVector<QColor> scanImageToMatrixMedian(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+
+    QElapsedTimer timer;
+    timer.start();
 
     QImage image(imagePath);
 
@@ -76,10 +219,15 @@ QVector<QColor> scanImageToMatrixMedian(const QString& imagePath, int rasterBrei
             }
         }
     }
+
+    qDebug() << "scanImageToMatrixMedian benötigte:" << timer.elapsed() << "Millisekunden";
     return farbMatrix;
 }
 
 QVector<QColor> scanImageToMatrixAverage(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+
+    QElapsedTimer timer;
+    timer.start();
 
     QImage image(imagePath);
 
@@ -118,13 +266,14 @@ QVector<QColor> scanImageToMatrixAverage(const QString& imagePath, int rasterBre
             }
         }
     }
+
+    qDebug() << "scanImageToMatrixAverage benötigte:" << timer.elapsed() << "Millisekunden";
     return farbMatrix;
 }
+*/
 
 int getPaletteIndex(int helligkeit, const QVector<QColor>& palette) {
-
     return helligkeit * (palette.size() - 1) / 255;
-
 }
 
 void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite, int bildHoehe, int rasterBreite, int rasterHoehe, const QString& svgFileName, const QString& scalingMode, bool grayscale, bool blackCircles, const QVector<QColor>& activePalette, bool usePalette, double cornerCoverageFactor) {
@@ -143,9 +292,6 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
     svgStream << "<rect id=\"background\" width=\"" << bildBreite << "\" height=\"" << bildHoehe << "\" fill=\"white\" />\n";
     svgStream << "<g id=\"circles\">\n";
 
-    //double maxRadiusFactor = blackCircles ? cornerCoverageFactor : 1.2;
-    //double maxRadiusFactor = cornerCoverageFactor;
-
     int index = 0;
     for (int y = 0; y < bildHoehe; y += rasterHoehe) {
         for (int x = 0; x < bildBreite; x += rasterBreite) {
@@ -160,14 +306,14 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
                 double radius = 0;
 
                 if (scalingMode == "linear") {
-                    radius = (double)helligkeit / 255.0 * maxRadius;
+                    radius = (double) helligkeit / 255.0 * maxRadius;
                 } else if (scalingMode == "sqrt") {
-                    radius = std::sqrt((double)helligkeit / 255.0) * maxRadius;
-                } else if (scalingMode == "logarithmic") {
+                    radius = std::sqrt((double) helligkeit / 255.0) * maxRadius;
+                } else if (scalingMode == "log") {
                     if (helligkeit > 0) {
-                        radius = std::log((double)helligkeit + 1) / std::log(256.0) * maxRadius;
+                        radius = std::log((double) helligkeit + 1) / std::log(256.0) * maxRadius;
                     } else {
-                        radius = 0;
+                        radius = 0.0;
                     }
                 } else if (scalingMode == "konstant") {
                     radius = maxRadius;
@@ -210,25 +356,25 @@ int main(int argc, char *argv[])
     parser.setApplicationDescription("Erzeugt SVG-Grafiken aus Bildern.");
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument("bild", "Das Eingabebild.");
+    parser.addPositionalArgument("bild", "Das zu rasternde Bild");
 
-    QCommandLineOption rasterBreiteOption(QStringList() << "b" << "raster-breite", "Die Breite des Rasters.", "breite", "10");
+    QCommandLineOption rasterBreiteOption(QStringList() << "x" << "raster-breite", "Breite des Rasters", "breite", "10");
     parser.addOption(rasterBreiteOption);
-    QCommandLineOption rasterHoeheOption(QStringList() << "t" << "raster-hoehe", "Die Höhe des Rasters.", "hoehe", "10");
+    QCommandLineOption rasterHoeheOption(QStringList() << "y" << "raster-hoehe", "Höhe des Rasters", "hoehe", "10");
     parser.addOption(rasterHoeheOption);
-    QCommandLineOption outputOption(QStringList() << "o" << "ausgabe", "Die Ausgabedatei.", "datei", "output.svg");
+    QCommandLineOption outputOption(QStringList() << "o" << "ausgabe", "Ausgabedatei", "datei", "output.svg");
     parser.addOption(outputOption);
-    QCommandLineOption scalingModeOption(QStringList() << "s" << "skalierung", "Der Skalierungsmodus (linear, sqrt, logarithmic, konstant).", "modus", "linear");
+    QCommandLineOption scalingModeOption(QStringList() << "s" << "skalierung", "Skalierungsmodus (linear, sqrt, log, konstant).", "modus", "linear");
     parser.addOption(scalingModeOption);
-    QCommandLineOption grayscaleOption(QStringList() << "g" << "graustufen", "Verwendet Graustufen.");
+    QCommandLineOption grayscaleOption(QStringList() << "g" << "graustufen", "Verwendet Graustufen statt Farben");
     parser.addOption(grayscaleOption);
-    QCommandLineOption blackCirclesOption(QStringList() << "B" << "schwarze-kreise", "Verwendet nur schwarze Kreise.");
+    QCommandLineOption blackCirclesOption(QStringList() << "B" << "schwarze-kreise", "Erzeugt schwarze Kreise");
     parser.addOption(blackCirclesOption);
-    QCommandLineOption paletteOption(QStringList() << "p" << "palette", "Die zu verwendende Farbpalette (palette1, palette2, palette3, grayscale).", "palette", "");
+    QCommandLineOption paletteOption(QStringList() << "p" << "palette", "Zu verwendende Farbpalette (palette1, palette2, palette3, grayscale).", "palette", "");
     parser.addOption(paletteOption);
-    QCommandLineOption medianOption(QStringList() << "m" << "median", "Verwendet den Median zur Farbbestimmung anstelle des Durchschnitts.");
+    QCommandLineOption medianOption(QStringList() << "m" << "median", "Verwendet den Mittelwert zur Farbbestimmung anstelle des Durchschnitts");
     parser.addOption(medianOption);
-    QCommandLineOption cornerCoverageOption(QStringList() << "c" << "corner-coverage", "Der Faktor für die Eckabdeckung (z.B. 1.0, 1.3).", "faktor", "1.0");
+    QCommandLineOption cornerCoverageOption(QStringList() << "e" << "eckabdeckung", "Faktor für die Eckabdeckung (z.B. 1.0, 1.3).", "faktor", "1.0");
     parser.addOption(cornerCoverageOption);
 
     parser.process(a.arguments());
@@ -255,10 +401,10 @@ int main(int argc, char *argv[])
     QVector<QColor> farbMatrix;
     if (useMedian) {
         farbMatrix = scanImageToMatrixMedian(imagePath, rasterBreite, rasterHoehe, bildBreite, bildHoehe);
-        qDebug() << Q_FUNC_INFO << "Verwende Medianberechnung";
+        qDebug() << "Verwende Medianberechnung";
     } else {
         farbMatrix = scanImageToMatrixAverage(imagePath, rasterBreite, rasterHoehe, bildBreite, bildHoehe);
-        qDebug()  << Q_FUNC_INFO << "Verwende Durchschnittsberechnung";
+        qDebug()  << "Verwende Durchschnittsberechnung";
     }
 
     if (farbMatrix.isEmpty()) {
