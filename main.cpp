@@ -1,3 +1,5 @@
+#include <algorithm> // Für std::sort
+#include <vector>
 #include <QFile>
 #include <QTextStream>
 #include <cmath>
@@ -8,8 +10,76 @@
 #include <QImage>
 #include <QVector>
 #include <QMap>
+#include <algorithm> // Für std::sort
+#include <vector>
 
-QVector<QColor> scanImageToMatrix(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+QVector<QColor> scanImageToMatrixMedian(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
+
+    QImage image(imagePath);
+
+    if (image.isNull()) {
+        qWarning() << "Bild konnte nicht geladen werden:" << imagePath;
+        return QVector<QColor>(); // Leere Matrix zurückgeben
+    }
+
+    bildBreite = image.width();
+    bildHoehe = image.height();
+
+    QVector<QColor> farbMatrix;
+    for (int y = 0; y < bildHoehe; y += rasterHoehe) {
+        for (int x = 0; x < bildBreite; x += rasterBreite) {
+            std::vector<int> redValues;
+            std::vector<int> greenValues;
+            std::vector<int> blueValues;
+
+            for (int iy = 0; iy < rasterHoehe && y + iy < bildHoehe; ++iy) {
+                for (int ix = 0; ix < rasterBreite && x + ix < bildBreite; ++ix) {
+                    QRgb rgb = image.pixel(x + ix, y + iy);
+                    redValues.push_back(qRed(rgb));
+                    greenValues.push_back(qGreen(rgb));
+                    blueValues.push_back(qBlue(rgb));
+                }
+            }
+
+            if (!redValues.empty()) {
+                std::sort(redValues.begin(), redValues.end());
+                std::sort(greenValues.begin(), greenValues.end());
+                std::sort(blueValues.begin(), blueValues.end());
+
+                int size;
+                int medianRed;
+                size = redValues.size();
+                if (size % 2 == 0) { // Gerade Anzahl
+                    medianRed = (redValues[size / 2 - 1] + redValues[size / 2]) / 2;
+                } else { // Ungerade Anzahl
+                    medianRed = redValues[size / 2];
+                }
+
+                int medianGreen;
+                size = greenValues.size();
+                if (size % 2 == 0) { // Gerade Anzahl
+                    medianGreen = (greenValues[size / 2 - 1] + greenValues[size / 2]) / 2;
+                } else { // Ungerade Anzahl
+                    medianGreen = greenValues[size / 2];
+                }
+
+                int medianBlue;
+                size = blueValues.size();
+                if (size % 2 == 0) { // Gerade Anzahl
+                    medianBlue = (blueValues[size / 2 - 1] + blueValues[size / 2]) / 2;
+                } else { // Ungerade Anzahl
+                    medianBlue = blueValues[size / 2];
+                }
+
+                QColor medianColor(medianRed, medianGreen, medianBlue);
+                farbMatrix.append(medianColor);
+            }
+        }
+    }
+    return farbMatrix;
+}
+
+QVector<QColor> scanImageToMatrixAverage(const QString& imagePath, int rasterBreite, int rasterHoehe, int& bildBreite, int& bildHoehe) {
 
     QImage image(imagePath);
 
@@ -74,7 +144,7 @@ void createSvgFromColorMatrix(const QVector<QColor>& farbMatrix, int bildBreite,
     svgStream << "<g id=\"circles\">\n";
 
     double cornerCoverageFactor = 1.3;
-    double maxRadiusFactor = blackCircles ? cornerCoverageFactor : 1.5;
+    double maxRadiusFactor = blackCircles ? cornerCoverageFactor : 1.2;
 
     int index = 0;
     for (int y = 0; y < bildHoehe; y += rasterHoehe) {
@@ -156,6 +226,8 @@ int main(int argc, char *argv[])
     parser.addOption(blackCirclesOption);
     QCommandLineOption paletteOption(QStringList() << "p" << "palette", "Die zu verwendende Farbpalette (palette1, palette2, palette3, grayscale).", "palette", "");
     parser.addOption(paletteOption);
+    QCommandLineOption medianOption(QStringList() << "m" << "median", "Verwendet den Median zur Farbbestimmung anstelle des Durchschnitts.");
+    parser.addOption(medianOption);
 
     parser.process(a.arguments());
 
@@ -176,7 +248,16 @@ int main(int argc, char *argv[])
     int bildBreite = 0;
     int bildHoehe = 0;
 
-    QVector<QColor> farbMatrix = scanImageToMatrix(imagePath, rasterBreite, rasterHoehe, bildBreite, bildHoehe);
+    bool useMedian = parser.isSet(medianOption);
+
+    QVector<QColor> farbMatrix;
+    if (useMedian) {
+        farbMatrix = scanImageToMatrixMedian(imagePath, rasterBreite, rasterHoehe, bildBreite, bildHoehe);
+        qDebug() << Q_FUNC_INFO << "Verwende Medianberechnung";
+    } else {
+        farbMatrix = scanImageToMatrixAverage(imagePath, rasterBreite, rasterHoehe, bildBreite, bildHoehe);
+        qDebug()  << Q_FUNC_INFO << "Verwende Durchschnittsberechnung";
+    }
 
     if (farbMatrix.isEmpty()) {
         return 1;
